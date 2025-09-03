@@ -44,6 +44,8 @@ class InputConfig(BaseModel):
     refseq_gtf: Optional[Path] = None
     coding_bed: Optional[Path] = None
     copy_input: bool = Field(default=False, description="If true, copy inputs into output_dir/input_files")
+    add_id: bool = Field(default=False, description="If true, add an id column to each peak")
+    id_column_name: str = Field(default="id", description="Column name for generated peak IDs")
 
 
 class MergeOptions(BaseModel):

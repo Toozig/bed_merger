@@ -26,7 +26,9 @@ input_config:
       extra_columns: null
   refseq_gtf: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/old_results/mice_mm10_atac_seq_bed_Files/iGenome_mm10_ucsc_genes.gtf
   coding_bed: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/mm10_yaml_run/mm10_coding_regions_refseq.bed
-  copy_input: false
+  copy_input: true
+  add_id: true
+  id_column_name: id
 
 output_dir: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/mm10_yaml_run
 genome_build: mm10

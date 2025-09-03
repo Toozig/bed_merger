@@ -10,7 +10,7 @@ import typer
 import pandas as pd
 import json
 from importlib import resources
-from .io_utils import load_bed_to_dataframe
+from .io_utils import load_bed_to_dataframe, read_bed_file, normalize_bed_columns
 from .stats import compute_basic_stats
 from .coding import (
     extract_coding_regions_from_gtf,
@@ -39,6 +39,10 @@ def _generate_report(
     genome_total_bp: Optional[int] = None,
     coding_total_bp: Optional[int] = None,
     tmp_dir: Optional[Path] = None,
+    add_id: bool = False,
+    id_column_name: str = "id",
+    merged_bed_path: Optional[Path] = None,
+    merged_sheet_name: str = "merged",
 ) -> None:
     """Core report generation used by both CLI modes."""
     # Load BEDs
@@ -52,6 +56,14 @@ def _generate_report(
 
     for idx, p in enumerate(bed_files):
         df = load_bed_to_dataframe(p, extra_column_names=extra_names[idx])
+        # Optionally add ID column using provided file_names (skip if already present)
+        if add_id and (id_column_name not in df.columns):
+            if file_names is None or idx >= len(file_names):
+                typer.echo("Error: add_id is enabled but file_names are missing or mismatched.", err=True)
+                raise typer.Exit(code=1)
+            display_name = file_names[idx]
+            df = df.copy()
+            df[id_column_name] = [f"{display_name}.{i+1}" for i in range(len(df))]
         per_file_dfs.append(df)
         per_file_names.append(p.name)
 
@@ -141,11 +153,25 @@ def _generate_report(
     # prepare display names for summary
     display_names = file_names or per_file_names
     processed = process_per_file_frames(per_file_dfs)
+    # If a merged bed is provided, read and prepend as the first sheet
+    sheet_names = file_names or per_file_names
+    if merged_bed_path is not None and Path(merged_bed_path).exists():
+        raw = read_bed_file(Path(merged_bed_path))
+        # Determine if merged has 3 or 4 columns
+        merged_df = raw
+        if raw.shape[1] >= 4:
+            # name extras with provided id column name for the 4th
+            merged_df = normalize_bed_columns(raw, extra_column_names=[id_column_name] + [f"col_{i}" for i in range(5, raw.shape[1] + 1)])
+        else:
+            merged_df = normalize_bed_columns(raw)
+        merged_processed = process_per_file_frames([merged_df])[0]
+        processed = [merged_processed] + processed
+        sheet_names = [merged_sheet_name] + sheet_names
     summary = compute_summary_df(stats_df, display_names=display_names,
                                  genome_total_bp=genome_total_bp, 
                                  coding_total_bp=coding_total_bp,
                                  genome_build=genome_build)
-    save_excel_report(processed, display_names, summary, output_excel)
+    save_excel_report(processed, sheet_names, summary, output_excel)
     typer.echo(f"Report written to: {output_excel}")
 
 
@@ -194,16 +220,39 @@ def _run_from_config(cfg: RunConfig) -> None:
             typer.echo("Error: bedtools not found in PATH but required for merge.", err=True)
             raise typer.Exit(code=1)
         merged_out = cfg.merge.out_path or (out_dir / "merged_inputs.bed")
-        # Concatenate and sort all inputs
         tmp_dir = Path(cfg.tmp_dir)
         tmp_dir.mkdir(parents=True, exist_ok=True)
         tmp_concat = tmp_dir / "_all_inputs.tmp.bed"
+        # Build merge input from processed DataFrames to include ID where requested
+        bed_paths = [spec.path for spec in cfg.input_config.bed_files]
+        file_names = [spec.name or Path(spec.path).name for spec in cfg.input_config.bed_files]
+        extra_names = [spec.extra_columns for spec in cfg.input_config.bed_files]
+        per_file_dfs: List[pd.DataFrame] = []
+        for idx, p in enumerate(bed_paths):
+            df = load_bed_to_dataframe(p, extra_column_names=extra_names[idx])
+            if cfg.input_config.add_id:
+                display_name = file_names[idx]
+                df = df.copy()
+                df[cfg.input_config.id_column_name] = [f"{display_name}.{i+1}" for i in range(len(df))]
+            per_file_dfs.append(df)
+        # Write combined tmp with 3 or 4 columns depending on add_id
         with open(tmp_concat, "w") as handle:
-            for spec in cfg.input_config.bed_files:
-                with open(spec.path, "r") as src:
-                    shutil.copyfileobj(src, handle)
-        sort_cmd = f"sort -k1,1 -k2,2n {tmp_concat}"
-        merge_cmd = ["bash", "-c", f"{sort_cmd} | bedtools merge -i - {cfg.merge.bedtools_opts or ''} > {merged_out}"]
+            for df in per_file_dfs:
+                if cfg.input_config.add_id and cfg.input_config.id_column_name in df.columns:
+                    df[["chr", "start", "end", cfg.input_config.id_column_name]].to_csv(handle, sep="\t", header=False, index=False)
+                else:
+                    df[["chr", "start", "end"]].to_csv(handle, sep="\t", header=False, index=False)
+        # Build merge command
+        if cfg.input_config.add_id:
+            # collapse ids in 4th column
+            bedtools_opts = (cfg.merge.bedtools_opts or "").strip()
+            merge_cmd = [
+                "bash", "-c",
+                f"sort -k1,1 -k2,2n {tmp_concat} | bedtools merge -i - -c 4 -o collapse {bedtools_opts} > {merged_out}"
+            ]
+        else:
+            sort_cmd = f"sort -k1,1 -k2,2n {tmp_concat}"
+            merge_cmd = ["bash", "-c", f"{sort_cmd} | bedtools merge -i - {cfg.merge.bedtools_opts or ''} > {merged_out}"]
         subprocess = __import__("subprocess")
         subprocess.run(merge_cmd, check=True)
         tmp_concat.unlink(missing_ok=True)
@@ -271,6 +320,10 @@ def _run_from_config(cfg: RunConfig) -> None:
         genome_total_bp=genome_total_bp,
         coding_total_bp=coding_total_bp,
         tmp_dir=Path(cfg.tmp_dir),
+        add_id=cfg.input_config.add_id,
+        id_column_name=cfg.input_config.id_column_name,
+        merged_bed_path=(cfg.merge.out_path or (cfg.output_dir / "merged_inputs.bed")) if cfg.merge.enabled else None,
+        merged_sheet_name="merged",
     )
 
 
