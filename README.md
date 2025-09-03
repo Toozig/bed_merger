@@ -44,6 +44,21 @@ To run the YAML-driven CLI:
 python -m bed_file_merger.cli run-config --config configs/hg38_human.yaml
 ```
 
+### Preprocessing mm10 input BEDs
+
+The script `scripts/normalize_mm10_beds.sh` was used to normalize and filter mm10 ATAC-seq BED files by:
+- keeping only rows starting with `chr` (dropping unmapped/contig regions), and
+- retaining only the first three columns (chr, start, end).
+
+It reads from `data/mm10_atac_seq/raw_files/*.bed` and writes normalized files to `data/mm10_atac_seq/*_normalized.bed`.
+
+Run it via:
+```bash
+bash scripts/normalize_mm10_beds.sh
+```
+
+The mm10 YAML config `configs/mm10_mice.yaml` points to these normalized files.
+
 ### YAML configuration (new schema)
 
 ```yaml
