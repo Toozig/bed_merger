@@ -76,6 +76,9 @@ def compute_summary_df(stats_df: pd.DataFrame,
     summary[f"Total % coding BP (out of total {genome_build} bp)"] = round(coding_total_bp / genome_total_bp * 100, ROUND_DECIMALS)
     summary[f"Total {genome_build} bp"] = genome_total_bp
 
+    # print the summary as markdown table
+    print(summary.to_string())
+
     return summary
 
 

@@ -1,6 +1,6 @@
 # BED File Merger - Project Organization
 
-This directory contains all files related to BED file merging and analysis for the mm10 ATAC-seq project.
+This directory contains all files related to BED file merging and analysis.
 
 ## Directory Structure
 
@@ -38,15 +38,41 @@ Contains original input BED files:
 
 ## Usage
 
-To recreate the analysis:
+To run the YAML-driven CLI:
 
 ```bash
-# Merge BED files
-./scripts/merge_bed_files.sh mice_mm10_atac_seq_bed_Files/*.bed output_name
-
-# Compare merged file with reference
-./scripts/compare_bed_files.sh merged_file.bed reference_file.bed output_directory
+python -m bed_file_merger.cli run-config --config configs/hg38_human.yaml
 ```
+
+### YAML configuration (new schema)
+
+```yaml
+input_config:
+  bed_files:
+    - path: /path/a.bed
+      name: A
+      extra_columns: [score, id]
+    - path: /path/b.bed
+      name: B
+      extra_columns: null
+  refseq_gtf: /path/refseq.gtf
+  coding_bed: /path/to/output/hg38_coding_regions_refseq.bed
+  copy_input: false
+
+output_dir: /path/to/output
+genome_build: hg38
+
+merge:
+  enabled: false
+  out_path: /path/to/output/merged_inputs.bed
+  bedtools_opts: ""
+
+# Names and extra column specifications are provided per file above.
+```
+
+Notes:
+- `copy_input: true` will copy all inputs to `<output_dir>/input_files/` for provenance; analysis uses original paths.
+- `coding_bed` is optional; if omitted, it will be generated under `output_dir`.
 
 ## Analysis Date
 Generated: $(date)

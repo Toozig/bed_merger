@@ -3,3 +3,4 @@ results/
 *.egg-info
 archive/
 *playground*
+data/

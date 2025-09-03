@@ -28,6 +28,24 @@ class BedFileStats(BaseModel):
     coding_percent: Optional[float] = None
 
 
+class BedFileSpec(BaseModel):
+    """Specification of a single BED input, including metadata for reporting and parsing."""
+
+    path: Path
+    name: Optional[str] = Field(default=None, description="Display name for this BED in the report")
+    extra_columns: Optional[List[str]] = Field(
+        default=None,
+        description="Names for 4th+ columns of this BED; omit or set null to auto-name",
+    )
+
+
+class InputConfig(BaseModel):
+    bed_files: List[BedFileSpec]
+    refseq_gtf: Optional[Path] = None
+    coding_bed: Optional[Path] = None
+    copy_input: bool = Field(default=False, description="If true, copy inputs into output_dir/input_files")
+
+
 class MergeOptions(BaseModel):
     enabled: bool = Field(default=False, description="Whether to run bedtools merge on all inputs")
     out_path: Optional[Path] = Field(None, description="Path to write merged BED if enabled")
@@ -35,16 +53,10 @@ class MergeOptions(BaseModel):
 
 
 class RunConfig(BaseModel):
-    bed_files: List[Path]
+    input_config: InputConfig
     output_dir: Path
-    refseq_gtf: Optional[Path] = None
-    coding_bed: Optional[Path] = None
     merge: MergeOptions = Field(default_factory=MergeOptions)
-    file_names: Optional[List[str]] = Field(None, description="Optional display names for each BED file")
-    extra_column_names: Optional[List[Optional[List[str]]]] = Field(
-        None,
-        description="Optional per-file list of extra column names (4th+ columns)"
-    )
     genome_build: Optional[str] = Field(None, description="Genome build key, e.g., hg38 or mm10")
+    tmp_dir: Path = Field(default=Path("/tmp"), description="Directory for temporary files; defaults to /tmp")
 
 

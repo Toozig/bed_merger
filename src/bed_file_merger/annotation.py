@@ -56,6 +56,7 @@ def annotate_peaks_with_gtf(
     peaks_df: pd.DataFrame,
     annotation_bed: Path,
     priority: List[str],
+    tmp_dir: Path,
 ) -> List[str]:
     """Annotate each peak by intersecting with the annotation BED and picking the
     highest priority feature. Returns a list of annotations ('' if none).
@@ -67,8 +68,9 @@ def annotate_peaks_with_gtf(
         return [""] * len(peaks_df)
 
     # Create a temporary bed with row ids to map back
-    tmp_dir = Path("")
-    tmp_bed = Path(os.path.join(os.getcwd(), "_peaks_for_annot.tmp.bed"))
+    tmp_dir = Path(tmp_dir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_bed = tmp_dir / "_peaks_for_annot.tmp.bed"
     peaks_with_id = peaks_df[["chr", "start", "end"]].copy()
     peaks_with_id["row_id"] = range(len(peaks_with_id))
     peaks_with_id.to_csv(tmp_bed, sep="\t", header=False, index=False)

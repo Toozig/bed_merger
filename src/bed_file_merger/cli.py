@@ -22,6 +22,7 @@ from .models import AnalysisConfig, BedFileStats, RunConfig
 from .annotation import build_annotation_bed_from_gtf, annotate_peaks_with_gtf, derive_coding_bed_from_annotation
 import yaml
 import shutil
+import filecmp
 
 
 app = typer.Typer(add_completion=False, help="BED analysis CLI")
@@ -37,6 +38,7 @@ def _generate_report(
     file_names: Optional[List[str]] = None,
     genome_total_bp: Optional[int] = None,
     coding_total_bp: Optional[int] = None,
+    tmp_dir: Optional[Path] = None,
 ) -> None:
     """Core report generation used by both CLI modes."""
     # Load BEDs
@@ -83,8 +85,9 @@ def _generate_report(
         coding_percent = None
         if coding_bed_path is not None and not df.empty:
             # write temp bed for this df
-            tmp = Path(typer.get_app_dir("bed-file-merger")) / f"tmp_{p.stem}.bed"
-            tmp.parent.mkdir(parents=True, exist_ok=True)
+            tmp_base = Path(tmp_dir) if tmp_dir is not None else Path(typer.get_app_dir("bed-file-merger"))
+            tmp_base.mkdir(parents=True, exist_ok=True)
+            tmp = tmp_base / f"tmp_{p.stem}.bed"
             df[["chr", "start", "end"]].to_csv(tmp, sep="\t", header=False, index=False)
             tmp_paths.append(tmp)
             segs, bp = count_intersections_and_bp(tmp, coding_bed_path)
@@ -123,7 +126,12 @@ def _generate_report(
             "CDS",
         ]
         for i in range(len(per_file_dfs)):
-            ann = annotate_peaks_with_gtf(per_file_dfs[i], ann_bed, priority)
+            ann = annotate_peaks_with_gtf(
+                per_file_dfs[i],
+                ann_bed,
+                priority,
+                Path(tmp_dir) if tmp_dir is not None else Path(typer.get_app_dir("bed-file-merger")),
+            )
             if len(ann) == len(per_file_dfs[i]):
                 per_file_dfs[i] = per_file_dfs[i].copy()
                 per_file_dfs[i]["genomic_annotation"] = ann
@@ -187,10 +195,12 @@ def _run_from_config(cfg: RunConfig) -> None:
             raise typer.Exit(code=1)
         merged_out = cfg.merge.out_path or (out_dir / "merged_inputs.bed")
         # Concatenate and sort all inputs
-        tmp_concat = out_dir / "_all_inputs.tmp.bed"
+        tmp_dir = Path(cfg.tmp_dir)
+        tmp_dir.mkdir(parents=True, exist_ok=True)
+        tmp_concat = tmp_dir / "_all_inputs.tmp.bed"
         with open(tmp_concat, "w") as handle:
-            for p in cfg.bed_files:
-                with open(p, "r") as src:
+            for spec in cfg.input_config.bed_files:
+                with open(spec.path, "r") as src:
                     shutil.copyfileobj(src, handle)
         sort_cmd = f"sort -k1,1 -k2,2n {tmp_concat}"
         merge_cmd = ["bash", "-c", f"{sort_cmd} | bedtools merge -i - {cfg.merge.bedtools_opts or ''} > {merged_out}"]
@@ -216,13 +226,13 @@ def _run_from_config(cfg: RunConfig) -> None:
         raise typer.Exit(code=1)
 
     # GTF is mandatory in this pipeline
-    if cfg.refseq_gtf is None or not Path(cfg.refseq_gtf).exists() or Path(cfg.refseq_gtf).stat().st_size == 0:
+    if cfg.input_config.refseq_gtf is None or not Path(cfg.input_config.refseq_gtf).exists() or Path(cfg.input_config.refseq_gtf).stat().st_size == 0:
         typer.echo("Error: A non-empty RefSeq GTF must be provided via 'refseq_gtf' in the config.", err=True)
         raise typer.Exit(code=1)
 
     # Resolve coding BED path
-    if cfg.coding_bed:
-        coding_bed = Path(cfg.coding_bed)
+    if cfg.input_config.coding_bed:
+        coding_bed = Path(cfg.input_config.coding_bed)
     else:
         coding_bed = Path(cfg.output_dir) / f"{cfg.genome_build}_coding_regions_refseq.bed"
     coding_bed.parent.mkdir(parents=True, exist_ok=True)
@@ -230,7 +240,7 @@ def _run_from_config(cfg: RunConfig) -> None:
     # Create coding BED if missing or empty using annotation derivation
     ann_bed = Path(cfg.output_dir) / "annotation_from_gtf.bed"
     if not ann_bed.exists() or ann_bed.stat().st_size == 0:
-        build_annotation_bed_from_gtf(Path(cfg.refseq_gtf), ann_bed)
+        build_annotation_bed_from_gtf(Path(cfg.input_config.refseq_gtf), ann_bed)
     if not coding_bed.exists() or coding_bed.stat().st_size == 0:
         derive_coding_bed_from_annotation(ann_bed, coding_bed)
 
@@ -247,16 +257,20 @@ def _run_from_config(cfg: RunConfig) -> None:
         raise typer.Exit(code=1)
 
     # Generate report using config-specified display/column names
+    bed_paths = [spec.path for spec in cfg.input_config.bed_files]
+    file_names = [spec.name or Path(spec.path).name for spec in cfg.input_config.bed_files]
+    extra_names = [spec.extra_columns for spec in cfg.input_config.bed_files]
     _generate_report(
-        bed_files=list(cfg.bed_files),
+        bed_files=bed_paths,
         output_excel=report_path,
-        refseq_gtf=cfg.refseq_gtf,
+        refseq_gtf=cfg.input_config.refseq_gtf,
         coding_bed=coding_bed,
         genome_build=cfg.genome_build,
-        extra_column_names=cfg.extra_column_names,
-        file_names=cfg.file_names,
+        extra_column_names=extra_names,
+        file_names=file_names,
         genome_total_bp=genome_total_bp,
         coding_total_bp=coding_total_bp,
+        tmp_dir=Path(cfg.tmp_dir),
     )
 
 
@@ -270,6 +284,54 @@ def run_config(
     cfg.output_dir.mkdir(parents=True, exist_ok=True)
     # copy the yaml into output dir for provenance
     shutil.copy2(config, cfg.output_dir / Path(config).name)
+    # Optionally copy inputs for provenance
+    if cfg.input_config.copy_input:
+        input_copy_dir = cfg.output_dir / "input_files"
+        input_copy_dir.mkdir(parents=True, exist_ok=True)
+
+        def _deduped_destination(target_dir: Path, name: str) -> Path:
+            base = Path(name).name
+            candidate = target_dir / base
+            if not candidate.exists():
+                return candidate
+            stem = Path(base).stem
+            suffix = Path(base).suffix
+            idx = 1
+            while True:
+                c = target_dir / f"{stem}_{idx}{suffix}"
+                if not c.exists():
+                    return c
+                idx += 1
+
+        def _is_within_output_dir(path: Path, output_dir: Path) -> bool:
+            try:
+                path.resolve().relative_to(output_dir.resolve())
+                return True
+            except Exception:
+                return False
+
+        def _copy_if_needed(src: Path, target_dir: Path) -> None:
+            # Skip if already under output_dir
+            if _is_within_output_dir(src, cfg.output_dir):
+                return
+            dest = target_dir / src.name
+            if dest.exists():
+                try:
+                    if filecmp.cmp(src, dest, shallow=False):
+                        # Identical file already present; do not copy again
+                        return
+                except Exception:
+                    pass
+                # Different content with same name: dedupe
+                dest = _deduped_destination(target_dir, src.name)
+            shutil.copy2(src, dest)
+
+        # Copy bed files
+        for spec in cfg.input_config.bed_files:
+            _copy_if_needed(Path(spec.path), input_copy_dir)
+        # Copy GTF if provided
+        if cfg.input_config.refseq_gtf is not None:
+            _copy_if_needed(Path(cfg.input_config.refseq_gtf), input_copy_dir)
     _run_from_config(cfg)
 
 
