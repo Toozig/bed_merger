@@ -1,0 +1,24 @@
+{
+    "hg38": {
+      "Assembly name": "GRCh38.p14",
+      "Release date": "2022-02-03",
+      "Assembly type": "haploid-with-alt-loci",
+      "Release type": "patch",
+      "Assembly units": 38,
+      "Total bases": 3298912062,
+      "Total non-N bases": 3137300923,
+      "Primary assembly N50": 67794873,
+      "source": "https://www.ncbi.nlm.nih.gov/grc/human/data"
+    },
+    "mm10": {
+      "Assembly name": "GRCm38.p6",
+      "Release date": "2017-09-15",
+      "Assembly type": "haploid-with-alt-loci",
+      "Release type": "patch",
+      "Assembly units": 17,
+      "Total bases": 2818974548,
+      "Total non-N bases": 2739538976,
+      "Primary assembly N50": 54517951,
+      "source": "https://www.ncbi.nlm.nih.gov/grc/mouse/data"
+    }
+  }

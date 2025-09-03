@@ -1,0 +1,40 @@
+bed_files:
+  - /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_all_combined_fix_id.bed
+  - /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_seq_peaks_Sertoli.bed
+  - /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_seq_peaks_XX_early_supporting.bed
+  - /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_seq_peaks_XY_early_supporting.bed
+  - /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_seq_peaks_pre_granulosa.bed
+
+# Output directory for the report and artifacts
+output_dir: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/human_yaml_run
+genome_build: hg38
+
+# Optional: provide RefSeq GTF to enable coding-region analysis
+refseq_gtf: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/ncbiRefSeq_hg38_23_11_2024.gtf
+
+# Optional: path to reuse/write the coding regions BED (if refseq_gtf is provided)
+coding_bed: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/human_yaml_run/hg38_coding_regions_refseq.bed
+
+# Optional merge step (artifact only; report still uses the original bed_files)
+merge:
+  enabled: false
+  out_path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/human_yaml_run/merged_inputs.bed
+  bedtools_opts: ""
+
+# Optional display names (must match length of bed_files)
+# Fill these with informative names to use as sheet names and in the summary
+file_names:
+  - "all combined"
+  - "Sertoli (SER)"
+  - "XX early supporting (XX-ES)"
+  - "XY early supporting (XY-ES)"
+  - "Pre-Granulosa (PG)"
+
+# Optional per-file extra column names for 4th+ columns of each BED
+# Use null to accept defaults, or provide a list like ["score", "id", ...]
+extra_column_names:
+  - null
+  - null
+  - null
+  - null
+  - null
