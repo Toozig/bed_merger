@@ -1,0 +1,164 @@
+# =============================================================================
+# BED File Merger - Complete Configuration Example
+# =============================================================================
+# This file demonstrates all possible configuration options with explanations.
+# Copy and modify this template for your specific analysis needs.
+
+# =============================================================================
+# INPUT CONFIGURATION
+# =============================================================================
+input_config:
+  
+  # List of BED files to analyze and potentially merge
+  bed_files:
+    # First BED file
+    - path: /absolute/path/to/sample1.bed
+      name: "Human scATAC Sample 1"              # Display name in reports
+      extra_columns: ['ID']                      # Additional columns beyond chr, start, end
+                                                # Common: ['ID'], ['peak_score'], ['ID', 'peak_score']
+                                                # Set to null if only 3 columns (chr, start, end)
+    
+    # Second BED file  
+    - path: /absolute/path/to/sample2.bed
+      name: "Mouse Converted Sample 2"
+      extra_columns: ['peak_score', 'ID']       # Multiple extra columns supported
+    
+    # Third BED file (minimal - only 3 columns)
+    - path: /absolute/path/to/sample3.bed
+      name: "Simple BED Sample 3"
+      extra_columns: null                       # No extra columns beyond chr, start, end
+  
+  # GTF file for coding region analysis (RefSeq format recommended)
+  refseq_gtf: /absolute/path/to/ncbiRefSeq_hg38.gtf
+  
+  # Pre-computed coding regions BED file (OPTIONAL)
+  # If not provided, will be generated from refseq_gtf
+  coding_bed: /absolute/path/to/hg38_coding_regions.bed
+  
+  # Copy all input files to output directory for provenance (RECOMMENDED for papers)
+  copy_input: true                              # true = copy files, false = reference only
+  
+  # Add unique IDs to each peak (useful for tracking)
+  add_id: true                                  # true = generate IDs, false = use existing or none
+  
+  # Column name for generated IDs (only used if add_id: true)
+  id_column_name: "peak_id"                     # Default: "id", can customize name
+
+# =============================================================================
+# OUTPUT CONFIGURATION  
+# =============================================================================
+
+# Main output directory (will be created if doesn't exist)
+output_dir: /absolute/path/to/analysis_results
+
+# Genome build for analysis (affects coding region processing)
+genome_build: hg38                              # Options: hg38, mm10
+
+# Temporary directory for processing files
+tmp_dir: /tmp                                   # Default: /tmp, can specify custom location
+
+# =============================================================================
+# MERGE CONFIGURATION (OPTIONAL)
+# =============================================================================
+# Controls whether input files are merged using bedtools merge
+
+merge:
+  # Enable/disable merging functionality
+  enabled: true                                 # true = create merged file, false = analysis only
+  
+  # Output path for merged BED file
+  # If null or omitted, defaults to <output_dir>/merged_inputs.bed
+  out_path: /absolute/path/to/merged_output.bed
+  
+  # Additional bedtools merge options (advanced users)
+  bedtools_opts: ""                            # Examples: "-d 100" (max distance), "-s" (strand-specific)
+                                               # Leave empty for default behavior
+
+# =============================================================================
+# CONFIGURATION EXAMPLES FOR DIFFERENT USE CASES
+# =============================================================================
+
+# Example 1: Simple analysis (no merging)
+# merge:
+#   enabled: false
+
+# Example 2: Merge with custom distance  
+# merge:
+#   enabled: true
+#   bedtools_opts: "-d 500"                    # Merge peaks within 500bp
+
+# Example 3: Strand-specific merging
+# merge:
+#   enabled: true  
+#   bedtools_opts: "-s"                        # Only merge overlapping regions on same strand
+
+# =============================================================================
+# TYPICAL WORKFLOWS
+# =============================================================================
+
+# Workflow 1: Human-only analysis
+# input_config:
+#   bed_files:
+#     - path: human_peaks.bed
+#       name: "Human scATAC"
+#       extra_columns: ['ID']
+#   refseq_gtf: hg38_refseq.gtf
+# genome_build: hg38
+
+# Workflow 2: Cross-species analysis (mouse converted to human)
+# input_config:
+#   bed_files:
+#     - path: human_native.bed
+#       name: "Human Native"
+#       extra_columns: ['ID']
+#     - path: mouse_converted_to_hg38.bed      # Pre-converted using utils/mm10_to_hg38_liftover.sh
+#       name: "Mouse Converted"
+#       extra_columns: ['ID']
+#   refseq_gtf: hg38_refseq.gtf
+# genome_build: hg38
+
+# Workflow 3: Multiple developmental stages
+# input_config:
+#   bed_files:
+#     - path: E11.5_peaks.bed
+#       name: "E11.5 Developmental Stage"
+#       extra_columns: ['peak_score']
+#     - path: E12.5_peaks.bed  
+#       name: "E12.5 Developmental Stage"
+#       extra_columns: ['peak_score']
+#     - path: E13.5_peaks.bed
+#       name: "E13.5 Developmental Stage"  
+#       extra_columns: ['peak_score']
+
+# =============================================================================
+# IMPORTANT NOTES
+# =============================================================================
+#
+# 1. FILE PATHS:
+#    - Use absolute paths to avoid confusion
+#    - Relative paths are interpreted relative to working directory
+#    - Ensure all files exist and are readable
+#
+# 2. BED FILE FORMAT:
+#    - Must be tab-separated
+#    - Minimum 3 columns: chr, start, end (0-based coordinates)
+#    - Extra columns specified in extra_columns parameter
+#    - Files should be sorted (will be sorted automatically if not)
+#
+# 3. GTF FILE:
+#    - RefSeq format recommended for best results
+#    - Used for coding region overlap analysis
+#    - Download from UCSC Genome Browser or NCBI
+#
+# 4. OUTPUT:
+#    - Excel report with individual sheets per input file
+#    - Summary statistics with coding region analysis
+#    - Optional merged BED file if merge.enabled: true
+#    - Input files copied to output_dir/input_files/ if copy_input: true
+#
+# 5. MEMORY USAGE:
+#    - Large BED files may require substantial memory
+#    - Ensure sufficient RAM for your dataset size
+#    - Use tmp_dir on fast storage for better performance
+#
+# =============================================================================

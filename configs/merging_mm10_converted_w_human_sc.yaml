@@ -1,0 +1,22 @@
+input_config:
+  bed_files:
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/human_yaml_run/input_files/human_hg38_scATAC_all_combined_fix_id.bed
+      name: "Human_hg38_scATAC_combined"
+      extra_columns: ['ID']
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/mm10_to_hg38_files/liftOverFilteration/mm10_to_hg38_filtered_070925.bed
+      name: "mm10_to_hg38_filtered_070925"
+      extra_columns: ['ID']
+  refseq_gtf: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/human_yaml_run/input_files/ncbiRefSeq_hg38_23_11_2024.gtf
+  copy_input: true
+  add_id: false
+  id_column_name: id
+
+output_dir: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/hg38_mouse_mm10_converted_w_human_sc
+genome_build: hg38
+tmp_dir: /tmp
+
+merge:
+  enabled: true
+  out_path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/hg38_mouse_mm10_converted_w_human_sc/merged_human_mm10_converted_070925.bed
+  bedtools_opts: ""
+

@@ -32,11 +32,7 @@ dependencies = [
 bed-merge-report = "bed_file_merger.cli:main"
 bed-extract-coding = "bed_file_merger.cli:main"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-
 [tool.setuptools.packages.find]
-where = ["src"]
 include = ["bed_file_merger*"]
 
 [tool.setuptools.package-data]
