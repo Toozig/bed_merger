@@ -86,76 +86,72 @@ def _generate_report(
         if not coding_bed_path.exists() or coding_bed_path.stat().st_size == 0:
             derive_coding_bed_from_annotation(ann_bed, coding_bed_path)
 
-    # Compute stats
+    # Helper functions to avoid duplication
     stats_records: List[BedFileStats] = []
     tmp_paths: List[Path] = []
-    for p, df in zip(bed_files, per_file_dfs):
-        basic = compute_basic_stats(df)
 
-        coding_peaks = None
-        coding_bp = None
-        coding_percent = None
-        if coding_bed_path is not None and not df.empty:
-            # write temp bed for this df
-            tmp_base = Path(tmp_dir) if tmp_dir is not None else Path(typer.get_app_dir("bed-file-merger"))
-            tmp_base.mkdir(parents=True, exist_ok=True)
-            tmp = tmp_base / f"tmp_{p.stem}.bed"
-            df[["chr", "start", "end"]].to_csv(tmp, sep="\t", header=False, index=False)
-            tmp_paths.append(tmp)
-            segs, bp = count_intersections_and_bp(tmp, coding_bed_path)
-            coding_peaks = segs
-            coding_bp = bp
-            coding_percent = (bp / basic["total_bp"] * 100.0) if basic["total_bp"] > 0 else 0.0
-
-        stats_records.append(
-            BedFileStats(
-                file_name=p.name,
-                n_peaks=basic["n_peaks"],
-                total_bp=basic["total_bp"],
-                min_length=basic["min_length"],
-                max_length=basic["max_length"],
-                mean_length=basic["mean_length"],
-                median_length=basic["median_length"],
-                coding_peaks=coding_peaks,
-                coding_bp=coding_bp,
-                coding_percent=coding_percent,
-            )
-        )
-
-    # Clean tmp files
-    for t in tmp_paths:
-        try:
-            t.unlink(missing_ok=True)
-        except Exception:
-            pass
-
-    # Add genomic annotation per peak if GTF is provided
-    if refseq_gtf is not None:
-        ann_bed = Path(output_excel).with_suffix("").parent / "annotation_from_gtf.bed"
-        priority = [
+    def _annotate_df(df: pd.DataFrame) -> pd.DataFrame:
+        if refseq_gtf is None:
+            return df
+        ann_bed_local = Path(output_excel).with_suffix("").parent / "annotation_from_gtf.bed"
+        priority_local = [
             "3UTR",
             "5UTR",
             "CDS",
         ]
-        for i in range(len(per_file_dfs)):
-            ann = annotate_peaks_with_gtf(
-                per_file_dfs[i],
-                ann_bed,
-                priority,
-                Path(tmp_dir) if tmp_dir is not None else Path(typer.get_app_dir("bed-file-merger")),
-            )
-            if len(ann) == len(per_file_dfs[i]):
-                per_file_dfs[i] = per_file_dfs[i].copy()
-                per_file_dfs[i]["genomic_annotation"] = ann
+        ann_local = annotate_peaks_with_gtf(
+            df,
+            ann_bed_local,
+            priority_local,
+            Path(tmp_dir) if tmp_dir is not None else Path(typer.get_app_dir("bed-file-merger")),
+        )
+        if len(ann_local) == len(df):
+            result = df.copy()
+            result["genomic_annotation"] = ann_local
+            return result
+        return df
 
-    stats_df = pd.DataFrame([s.model_dump() for s in stats_records])
+    def _compute_stats(df: pd.DataFrame, name_for_tmp: Path, file_name_field: str) -> BedFileStats:
+        basic_local = compute_basic_stats(df)
+        coding_peaks_local = None
+        coding_bp_local = None
+        coding_percent_local = None
+        if coding_bed_path is not None and not df.empty:
+            tmp_base_local = Path(tmp_dir) if tmp_dir is not None else Path(typer.get_app_dir("bed-file-merger"))
+            tmp_base_local.mkdir(parents=True, exist_ok=True)
+            tmp_local = tmp_base_local / f"tmp_{Path(name_for_tmp).stem}.bed"
+            df[["chr", "start", "end"]].to_csv(tmp_local, sep="\t", header=False, index=False)
+            tmp_paths.append(tmp_local)
+            segs_local, bp_local = count_intersections_and_bp(tmp_local, coding_bed_path)
+            coding_peaks_local = segs_local
+            coding_bp_local = bp_local
+            total_bp_local = basic_local["total_bp"]
+            coding_percent_local = (bp_local / total_bp_local * 100.0) if total_bp_local > 0 else 0.0
+        return BedFileStats(
+            file_name=file_name_field,
+            n_peaks=basic_local["n_peaks"],
+            total_bp=basic_local["total_bp"],
+            min_length=basic_local["min_length"],
+            max_length=basic_local["max_length"],
+            mean_length=basic_local["mean_length"],
+            median_length=basic_local["median_length"],
+            coding_peaks=coding_peaks_local,
+            coding_bp=coding_bp_local,
+            coding_percent=coding_percent_local,
+        )
 
-    # prepare display names for summary
+    # Annotate per-file dataframes (if GTF provided)
+    per_file_dfs = [_annotate_df(df) for df in per_file_dfs]
+    # Compute per-file stats
+    for p, df in zip(bed_files, per_file_dfs):
+        stats_records.append(_compute_stats(df, p, p.name))
+
+    # prepare display names for summary and processed frames
     display_names = file_names or per_file_names
     processed = process_per_file_frames(per_file_dfs)
-    # If a merged bed is provided, read and prepend as the first sheet
+    # If a merged bed is provided, read and prepend as the first sheet and compute stats
     sheet_names = file_names or per_file_names
-    if path is not None and Path(merged_bed_path).exists():
+    if merged_bed_path is not None and Path(merged_bed_path).exists():
         raw = read_bed_file(Path(merged_bed_path))
         # Determine if merged has 3 or 4 columns
         merged_df = raw
@@ -164,9 +160,22 @@ def _generate_report(
             merged_df = normalize_bed_columns(raw, extra_column_names=[id_column_name] + [f"col_{i}" for i in range(5, raw.shape[1] + 1)])
         else:
             merged_df = normalize_bed_columns(raw)
+        # Optionally annotate merged_df (if GTF provided)
+        merged_df = _annotate_df(merged_df)
         merged_processed = process_per_file_frames([merged_df])[0]
         processed = [merged_processed] + processed
         sheet_names = [merged_sheet_name] + sheet_names
+        # Compute stats for merged and prepend to stats_records
+        merged_stats = _compute_stats(merged_df, Path(merged_bed_path), Path(merged_bed_path).name)
+        stats_records = [merged_stats] + stats_records
+        display_names = [merged_sheet_name] + display_names
+    # Clean tmp files
+    for t in tmp_paths:
+        try:
+            t.unlink(missing_ok=True)
+        except Exception:
+            pass
+    stats_df = pd.DataFrame([s.model_dump() for s in stats_records])
     summary = compute_summary_df(stats_df, display_names=display_names,
                                  genome_total_bp=genome_total_bp, 
                                  coding_total_bp=coding_total_bp,
@@ -237,11 +246,24 @@ def _run_from_config(cfg: RunConfig) -> None:
             per_file_dfs.append(df)
         # Write combined tmp with 3 or 4 columns depending on add_id
         with open(tmp_concat, "w") as handle:
-            for df in per_file_dfs:
+            for idx, df in enumerate(per_file_dfs):
                 if cfg.input_config.add_id and cfg.input_config.id_column_name in df.columns:
                     df[["chr", "start", "end", cfg.input_config.id_column_name]].to_csv(handle, sep="\t", header=False, index=False)
                 else:
-                    df[["chr", "start", "end"]].to_csv(handle, sep="\t", header=False, index=False)
+                    # Prefer an existing extra column (e.g., ID) as 4th column if present
+                    preferred_extras = extra_names[idx] or []
+                    selected_extra = None
+                    for col_name in preferred_extras:
+                        if col_name in df.columns:
+                            selected_extra = col_name
+                            break
+                    # If no preferred name matched but there are extra columns, take the first extra
+                    if selected_extra is None and len(df.columns) > 3:
+                        selected_extra = df.columns[3]
+                    if selected_extra is not None:
+                        df[["chr", "start", "end", selected_extra]].to_csv(handle, sep="\t", header=False, index=False)
+                    else:
+                        df[["chr", "start", "end"]].to_csv(handle, sep="\t", header=False, index=False)
         # Build merge command
         if cfg.input_config.add_id:
             # collapse ids in 4th column
