@@ -97,6 +97,7 @@ def _generate_report(
         priority_local = [
             "3UTR",
             "5UTR",
+            "UTR",
             "CDS",
         ]
         ann_local = annotate_peaks_with_gtf(
@@ -217,19 +218,20 @@ def extract_coding(
 
 
 def _run_from_config(cfg: RunConfig) -> None:
-    out_dir = cfg.output_dir
+    out_dir = cfg.output_config.output_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Write a default report path inside the output_dir
-    report_path = out_dir / "report.xlsx"
+    # Derive report and default merged paths from output_file_name
+    report_path = out_dir / f"{cfg.output_config.output_file_name}.xlsx"
 
     # Optional merge step (artifact only)
     if cfg.merge.enabled:
         if not check_bedtools_available():
             typer.echo("Error: bedtools not found in PATH but required for merge.", err=True)
             raise typer.Exit(code=1)
-        merged_out = cfg.merge.out_path or (out_dir / "merged_inputs.bed")
-        tmp_dir = Path(cfg.tmp_dir)
+        default_merged = out_dir / f"{cfg.output_config.output_file_name}.bed"
+        merged_out = cfg.merge.out_path or default_merged
+        tmp_dir = Path(cfg.output_config.tmp_dir)
         tmp_dir.mkdir(parents=True, exist_ok=True)
         tmp_concat = tmp_dir / "_all_inputs.tmp.bed"
         # Build merge input from processed DataFrames to include ID where requested
@@ -264,17 +266,10 @@ def _run_from_config(cfg: RunConfig) -> None:
                         df[["chr", "start", "end", selected_extra]].to_csv(handle, sep="\t", header=False, index=False)
                     else:
                         df[["chr", "start", "end"]].to_csv(handle, sep="\t", header=False, index=False)
-        # Build merge command
-        if cfg.input_config.add_id:
-            # collapse ids in 4th column
-            bedtools_opts = (cfg.merge.bedtools_opts or "").strip()
-            merge_cmd = [
-                "bash", "-c",
-                f"sort -k1,1 -k2,2n {tmp_concat} | bedtools merge -i - -c 4 -o collapse {bedtools_opts} > {merged_out}"
-            ]
-        else:
-            sort_cmd = f"sort -k1,1 -k2,2n {tmp_concat}"
-            merge_cmd = ["bash", "-c", f"{sort_cmd} | bedtools merge -i - {cfg.merge.bedtools_opts or ''} > {merged_out}"]
+        # Build merge command (no forced collapse; rely solely on user-provided bedtools_opts)
+        bedtools_opts = (cfg.merge.bedtools_opts or "").strip()
+        sort_cmd = f"sort -k1,1 -k2,2n {tmp_concat}"
+        merge_cmd = ["bash", "-c", f"{sort_cmd} | bedtools merge -i - {bedtools_opts} > {merged_out}"]
         subprocess = __import__("subprocess")
         subprocess.run(merge_cmd, check=True)
         tmp_concat.unlink(missing_ok=True)
@@ -305,11 +300,11 @@ def _run_from_config(cfg: RunConfig) -> None:
     if cfg.input_config.coding_bed:
         coding_bed = Path(cfg.input_config.coding_bed)
     else:
-        coding_bed = Path(cfg.output_dir) / f"{cfg.genome_build}_coding_regions_refseq.bed"
+        coding_bed = Path(cfg.output_config.output_dir) / f"{cfg.genome_build}_coding_regions_refseq.bed"
     coding_bed.parent.mkdir(parents=True, exist_ok=True)
 
     # Create coding BED if missing or empty using annotation derivation
-    ann_bed = Path(cfg.output_dir) / "annotation_from_gtf.bed"
+    ann_bed = Path(cfg.output_config.output_dir) / "annotation_from_gtf.bed"
     if not ann_bed.exists() or ann_bed.stat().st_size == 0:
         build_annotation_bed_from_gtf(Path(cfg.input_config.refseq_gtf), ann_bed)
     if not coding_bed.exists() or coding_bed.stat().st_size == 0:
@@ -341,10 +336,10 @@ def _run_from_config(cfg: RunConfig) -> None:
         file_names=file_names,
         genome_total_bp=genome_total_bp,
         coding_total_bp=coding_total_bp,
-        tmp_dir=Path(cfg.tmp_dir),
+        tmp_dir=Path(cfg.output_config.tmp_dir),
         add_id=cfg.input_config.add_id,
         id_column_name=cfg.input_config.id_column_name,
-        merged_bed_path=(cfg.merge.out_path or (cfg.output_dir / "merged_inputs.bed")) if cfg.merge.enabled else None,
+        merged_bed_path=(cfg.merge.out_path or (cfg.output_config.output_dir / f"{cfg.output_config.output_file_name}.bed")) if cfg.merge.enabled else None,
         merged_sheet_name="merged",
     )
 
@@ -356,12 +351,12 @@ def run_config(
     with open(config, "r") as f:
         data = yaml.safe_load(f)
     cfg = RunConfig(**data)
-    cfg.output_dir.mkdir(parents=True, exist_ok=True)
+    cfg.output_config.output_dir.mkdir(parents=True, exist_ok=True)
     # copy the yaml into output dir for provenance
-    shutil.copy2(config, cfg.output_dir / Path(config).name)
+    shutil.copy2(config, cfg.output_config.output_dir / Path(config).name)
     # Optionally copy inputs for provenance
     if cfg.input_config.copy_input:
-        input_copy_dir = cfg.output_dir / "input_files"
+        input_copy_dir = cfg.output_config.output_dir / "input_files"
         input_copy_dir.mkdir(parents=True, exist_ok=True)
 
         def _deduped_destination(target_dir: Path, name: str) -> Path:
@@ -387,7 +382,7 @@ def run_config(
 
         def _copy_if_needed(src: Path, target_dir: Path) -> None:
             # Skip if already under output_dir
-            if _is_within_output_dir(src, cfg.output_dir):
+            if _is_within_output_dir(src, cfg.output_config.output_dir):
                 return
             dest = target_dir / src.name
             if dest.exists():

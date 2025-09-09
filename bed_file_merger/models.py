@@ -54,11 +54,23 @@ class MergeOptions(BaseModel):
     bedtools_opts: Optional[str] = Field(None, description="Extra bedtools merge options")
 
 
+class OutputConfig(BaseModel):
+    """Grouping of all output-related configuration options."""
+
+    output_dir: Path = Field(..., description="Main output directory for reports and artifacts")
+    tmp_dir: Path = Field(default=Path("/tmp"), description="Directory for temporary files; defaults to /tmp")
+    output_file_name: str = Field(
+        default="report",
+        description=(
+            "Base name (no extension) for outputs; Excel report will be '<name>.xlsx' and default merged BED '<name>.bed'"
+        ),
+    )
+
+
 class RunConfig(BaseModel):
     input_config: InputConfig
-    output_dir: Path
+    output_config: OutputConfig
     merge: MergeOptions = Field(default_factory=MergeOptions)
     genome_build: Optional[str] = Field(None, description="Genome build key, e.g., hg38 or mm10")
-    tmp_dir: Path = Field(default=Path("/tmp"), description="Directory for temporary files; defaults to /tmp")
 
 

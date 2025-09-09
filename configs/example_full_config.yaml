@@ -48,14 +48,19 @@ input_config:
 # OUTPUT CONFIGURATION  
 # =============================================================================
 
-# Main output directory (will be created if doesn't exist)
-output_dir: /absolute/path/to/analysis_results
+# Output configuration (grouped)
+output_config:
+  # Main output directory (will be created if doesn't exist)
+  output_dir: /absolute/path/to/analysis_results
+  
+  # Temporary directory for processing files
+  tmp_dir: /tmp                                   # Default: /tmp, can specify custom location
+  
+  # Base name (no extension). Report -> <name>.xlsx; merged -> <name>.bed (default)
+  output_file_name: report
 
 # Genome build for analysis (affects coding region processing)
 genome_build: hg38                              # Options: hg38, mm10
-
-# Temporary directory for processing files
-tmp_dir: /tmp                                   # Default: /tmp, can specify custom location
 
 # =============================================================================
 # MERGE CONFIGURATION (OPTIONAL)
@@ -66,9 +71,9 @@ merge:
   # Enable/disable merging functionality
   enabled: true                                 # true = create merged file, false = analysis only
   
-  # Output path for merged BED file
-  # If null or omitted, defaults to <output_dir>/merged_inputs.bed
-  out_path: /absolute/path/to/merged_output.bed
+  # Output path for merged BED file (OPTIONAL)
+  # If omitted, defaults to <output_dir>/<output_file_name>.bed
+  # out_path: /absolute/path/to/merged_output.bed
   
   # Additional bedtools merge options (advanced users)
   bedtools_opts: ""                            # Examples: "-d 100" (max distance), "-s" (strand-specific)

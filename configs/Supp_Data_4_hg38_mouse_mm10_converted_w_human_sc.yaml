@@ -1,0 +1,25 @@
+input_config:
+  bed_files:
+    - path: results/Supp_Data_1_hg38_scATAC/input_files/human_hg38_scATAC_all_combined_fix_id.bed
+      name: "Human_hg38_scATAC_combined"
+      extra_columns: ['ID']
+    - path: results/Supp_Data_3_mm10_to_hg38_conversion/liftOver_filteration/Supp_Data_3_mm10_to_hg38_conversion.bed
+      name: "Mouse_Converted_mm10_to_hg38"
+      extra_columns: ['ID']
+  refseq_gtf: resources/ncbiRefSeq_hg38_23_11_2024.gtf
+  copy_input: true
+  add_id: false
+  id_column_name: id
+
+output_config:
+  output_dir: results/Supp_Data_4_hg38_mouse_mm10_converted_w_human_sc
+  tmp_dir: /tmp
+  output_file_name: Supp_Data_4_hg38_mouse_mm10_converted_w_human_sc
+
+genome_build: hg38
+
+merge:
+  enabled: true
+  # out_path: optional; defaults to <output_dir>/<output_file_name>.bed if omitted
+  bedtools_opts: "-c 4 -o collapse -delim '_'"
+

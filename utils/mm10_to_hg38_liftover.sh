@@ -14,10 +14,10 @@ Usage: $0 [input_bed] [chain_file] [output_success] [output_failed] [min_match]
 Convert mm10 genomic coordinates to hg38 using UCSC liftOver.
 
 Arguments (all optional, defaults shown):
-  input_bed      Input BED file (results/mm10_merged_peaks_030925.bed)
+  input_bed      Input BED file (results/results/Supp_data_2_mm10_gnoad_cells_ATAC_seq/Supp_data_2_mm10_gnoad_cells_ATAC_seq.bed)
   chain_file     Chain file (mm10ToHg38.over.chain.gz)
-  output_success Output for successful conversions (results/liftover_mm10_to_hg38_peaks.bed)
-  output_failed  Output for failed conversions (results/liftover_mm10_unsuccessful.bed)
+  output_success Output for successful conversions (results/Supp_Data_3_mm10_to_hg38_conversion/liftover_mm10_to_hg38_peaks.bed)
+  output_failed  Output for failed conversions (results/Supp_Data_3_mm10_to_hg38_conversion/liftover_mm10_unsuccessful.bed)
   min_match      Minimum match ratio (0.1)
 
 Options:
@@ -31,12 +31,13 @@ case "${1:-}" in
     -h|--help) usage; exit 0 ;;
     -v|--version) echo "mm10_to_hg38_liftover v1.0"; exit 0 ;;
 esac
+OUTPUT_DIR="results/Supp_Data_3_mm10_to_hg38_conversion/lifOver_output"
 
 # Default parameters
-INPUT_BED="${1:-results/mm10_merged_peaks_030925.bed}"
-CHAIN_FILE="${2:-mm10ToHg38.over.chain.gz}"
-OUTPUT_SUCCESSFUL="${3:-results/liftover_mm10_to_hg38_peaks.bed}"
-OUTPUT_FAILED="${4:-results/liftover_mm10_unsuccessful.bed}"
+INPUT_BED="${1:-results/Supp_data_2_mm10_gnoad_cells_ATAC_seq/Supp_data_2_mm10_gnoad_cells_ATAC_seq.bed}"
+CHAIN_FILE="${2:-resources/mm10ToHg38.over.chain.gz}"
+OUTPUT_SUCCESSFUL="${3:-${OUTPUT_DIR}/liftover_mm10_to_hg38_peaks.bed}"
+OUTPUT_FAILED="${4:-${OUTPUT_DIR}/liftover_mm10_unsuccessful.bed}"
 MIN_MATCH="${5:-0.1}"
 
 # Validate required files
@@ -44,7 +45,7 @@ MIN_MATCH="${5:-0.1}"
 [[ -f "$CHAIN_FILE" ]] || { echo "Error: Chain file not found: $CHAIN_FILE" >&2; exit 1; }
 
 # Create output directories if needed
-mkdir -p "$(dirname "$OUTPUT_SUCCESSFUL")" "$(dirname "$OUTPUT_FAILED")"
+mkdir -p "$OUTPUT_DIR"
 
 # Execute liftOver
 echo "Converting $INPUT_BED (mm10 → hg38)..."

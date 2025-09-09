@@ -1,0 +1,35 @@
+input_config:
+  bed_files:
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_all_combined_fix_id.bed
+      name: "all combined"
+      extra_columns: [ID]
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_seq_peaks_Sertoli.bed
+      name: "Sertoli (SER)"
+      extra_columns: [peak_count]
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_seq_peaks_XX_early_supporting.bed
+      name: "XX early supporting (XX-ES)"
+      extra_columns: [peak_count]
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_seq_peaks_XY_early_supporting.bed
+      name: "XY early supporting (XY-ES)"
+      extra_columns: [peak_count]
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/hg38_scATAC_analysis_test/input_files/human_hg38_scATAC_seq_peaks_pre_granulosa.bed
+      name: "Pre-Granulosa (PG)"
+      extra_columns: [peak_count]
+  refseq_gtf: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/resources/ncbiRefSeq_hg38_23_11_2024.gtf
+  copy_input: true
+
+# Output configuration for the report and artifacts
+output_config:
+  output_dir: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/Supp_Data_1_hg38_scATAC
+  tmp_dir: /tmp
+  output_file_name: Supp_Data 1_hg38_scATAC
+
+genome_build: hg38
+
+# Optional merge step (artifact only; report still uses the original bed_files)
+merge:
+  enabled: false
+  # out_path: optional; defaults to <output_dir>/<output_file_name>.bed if omitted
+  bedtools_opts: ""
+
+# Per-file names and extra columns are now specified under input_config.bed_files

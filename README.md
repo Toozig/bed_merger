@@ -42,9 +42,12 @@ input_config:
   add_id: true                      # Generate unique peak IDs
   id_column_name: id
 
-output_dir: /path/to/output
+output_config:
+  output_dir: /path/to/output
+  tmp_dir: /tmp
+  output_file_name: report
+
 genome_build: hg38                  # hg38 or mm10
-tmp_dir: /tmp
 
 # Optional: Merge overlapping regions using bedtools
 merge:
@@ -57,7 +60,7 @@ merge:
 
 The package generates comprehensive analysis reports:
 
-### 1. **Excel Report** (`report.xlsx`)
+### 1. **Excel Report** (`<output_dir>/<output_file_name>.xlsx`, default: `report.xlsx`)
 - **Individual sheets** for each input BED file with statistics
 - **Summary statistics** with coding region overlap analysis  
 - **Merged results** sheet (if merging enabled)
@@ -99,7 +102,10 @@ input_config:
   copy_input: true
   add_id: true
 
-output_dir: results/human_analysis
+output_config:
+  output_dir: results/human_analysis
+  tmp_dir: /tmp
+  output_file_name: report
 genome_build: hg38
 merge:
   enabled: true
@@ -123,7 +129,10 @@ input_config:
       extra_columns: ['ID']
   refseq_gtf: data/hg38_refseq.gtf
 
-output_dir: results/cross_species_analysis  
+output_config:
+  output_dir: results/cross_species_analysis  
+  tmp_dir: /tmp
+  output_file_name: report
 genome_build: hg38
 merge:
   enabled: true
