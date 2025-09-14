@@ -92,6 +92,24 @@ This directory contains specialized utility scripts that support the main BED Fi
 
 ---
 
+## 📈 `mm10_to_hg38_analysis.py`
+
+Replicates the `mm10_tohg_38_analysis.ipynb` workflow to produce an Excel report (with an extra tab for unsuccessful conversions) and a filtered BED.
+
+Usage:
+```bash
+python utils/mm10_to_hg38_analysis.py \
+  --original-bed results/mm10_to_hg38_files/mm10_merged_peaks_030925.bed \
+  --converted-bed results/mm10_to_hg38_files/liftOveroutput/liftover_mm10_to_hg38_peaks.bed \
+  --unsuccessful-bed results/mm10_to_hg38_files/liftOveroutput/liftover_mm10_unsuccseful.bed \
+  --output-dir results/mm10_to_hg38_files/liftOverFilteration \
+  --rel-tol 0.25 --abs-tol 1000 --min-size-floor 100
+```
+
+Outputs:
+- `mm10_to_hg38_analysis_results.xlsx`: Tabs `Filtered_Peaks`, `All_Peak`, `All_Statistics`, `Unsuccessful`
+- `mm10_to_hg38_filtered.bed`: Filtered peaks (chr, start, end, ID)
+
 ## 🔗 Integration with Main Package
 
 These utilities complement the main BED File Merger Python package:
