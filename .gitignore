@@ -4,3 +4,5 @@ results/
 archive/
 *playground*
 data/
+*.gtf*
+resources/gencode.vM17.annotation.gtf.gz
