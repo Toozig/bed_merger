@@ -1,1 +1,8 @@
 results/
+*.pyc
+*.egg-info
+archive/
+*playground*
+data/
+*.gtf*
+resources/gencode.vM17.annotation.gtf.gz

@@ -1,0 +1,42 @@
+input_config:
+  bed_files:
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/data/mm10_atac_seq/E11.5_XX_Enh8-mCherry_consensus_peaks_2rep_normalized.bed
+      name: "XX.E11.5"
+      extra_columns: null
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/data/mm10_atac_seq/E11.5_XY_Sox9-IRES-GFP_consensus_peaks_2rep_normalized.bed
+      name: "XY.E11.5"
+      extra_columns: null
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/data/mm10_atac_seq/E12.5_XX_Enh8-mCherry_consensus_peaks_2rep_normalized.bed
+      name: "XX.E12.5"
+      extra_columns: null
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/data/mm10_atac_seq/E12.5_XY_Sox9-IRES-GFP_consensus_peaks_2rep_normalized.bed
+      name: "XY.E12.5"
+      extra_columns: null
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/data/mm10_atac_seq/E13.5_XX_Enh8-mCherry_consensus_peaks_2rep_normalized.bed
+      name: "XX.E13.5"
+      extra_columns: null
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/data/mm10_atac_seq/E13.5_XY_Sox9-IRES-GFP_consensus_peaks_2rep_normalized.bed
+      name: "XY.E13.5"
+      extra_columns: null
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/data/mm10_atac_seq/E15.5_XX_Enh8-mCherry_consensus_peaks_2rep_normalized.bed
+      name: "XX.E15.5"
+      extra_columns: null
+    - path: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/data/mm10_atac_seq/E15.5_XY_Sox9-IRES-GFP_consensus_peaks_2rep_normalized.bed
+      name: "XY.E15.5"
+      extra_columns: null
+  refseq_gtf: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/resources/gencode.vM17.annotation.gtf.gz
+  copy_input: true
+  add_id: true
+  id_column_name: id
+
+output_config:
+  output_dir: /home/ls/toozig/gonen-lab/users/toozig/projects/dsd-viz/bed_file_merger/results/Supp_data_2_mm10_gnoad_cells_ATAC_seq
+  tmp_dir: /tmp
+  output_file_name: Supp_data_2_mm10_gnoad_cells_ATAC_seq
+
+genome_build: mm10
+
+merge:
+  enabled: true
+  # out_path: optional; defaults to <output_dir>/<output_file_name>.bed if omitted
+  bedtools_opts: "-c 4 -o collapse -delim '_'"
