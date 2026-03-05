@@ -23,7 +23,10 @@ from .annotation import build_annotation_bed_from_gtf, annotate_peaks_with_gtf, 
 import yaml
 import shutil
 import filecmp
+import json
 
+GENOME_FILE_PATH = 'resources/genome_info.json'
+GENE_ANNOTATION_KEY = "Gene annotation"
 
 app = typer.Typer(add_completion=False, help="BED analysis CLI")
 
@@ -107,8 +110,11 @@ def _generate_report(
             Path(tmp_dir) if tmp_dir is not None else Path(typer.get_app_dir("bed-file-merger")),
         )
         if len(ann_local) == len(df):
+            with open(GENOME_FILE_PATH, "r") as f:
+                genome_info = json.load(f)
+            refrence = genome_info.get(genome_build).get(GENE_ANNOTATION_KEY)
             result = df.copy()
-            result["genomic_annotation"] = ann_local
+            result[f"genomic_annotation ({refrence})"] = ann_local
             return result
         return df
 

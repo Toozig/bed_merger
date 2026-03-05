@@ -37,8 +37,44 @@ def add_size(df: pd.DataFrame, size_col: str) -> pd.DataFrame:
     return out
 
 
+def sort_by_chrom_and_start(df: pd.DataFrame) -> pd.DataFrame:
+    """Sort DataFrame by chromosome and start position (biological ordering).
+    
+    Handles proper chromosome sorting: chr1, chr2, ..., chr10, chr11, ..., chrX, chrY, chrM
+    """
+    if df.empty or 'chr' not in df.columns or 'start' not in df.columns:
+        return df
+    
+    def chrom_sort_key(chrom: str) -> tuple:
+        """Generate sort key for biological chromosome ordering."""
+        chrom_str = str(chrom).replace('chr', '')
+        
+        # Handle standard chromosomes (1-22)
+        if chrom_str.isdigit():
+            return (0, int(chrom_str))
+        # Handle sex chromosomes
+        elif chrom_str == 'X':
+            return (1, 0)
+        elif chrom_str == 'Y':
+            return (1, 1)
+        # Handle mitochondrial
+        elif chrom_str in ('M', 'MT'):
+            return (2, 0)
+        # Handle anything else alphabetically
+        else:
+            return (3, chrom_str)
+    
+    out = df.copy()
+    out['_sort_key'] = out['chr'].apply(chrom_sort_key)
+    out = out.sort_values(by=['_sort_key', 'start'], ascending=True)
+    out = out.drop(columns=['_sort_key'])
+    return out.reset_index(drop=True)
+
+
 def build_comparison(original_bed: Path, converted_bed: Path) -> pd.DataFrame:
-    original = read_bed(original_bed, ["chr", "start", "end", "ID"])
+    original = read_bed(original_bed, ["chr", "start", "end", "ID", "original_peaks"])
+    # drop the original_peaks column
+    original = original.drop(columns=["original_peaks"])
     original = add_size(original, "original_size")
 
     converted = read_bed(converted_bed, ["chr", "start", "end", "ID", "n_multiple"])
@@ -80,13 +116,20 @@ def apply_filters(comp: pd.DataFrame, abs_tol: int, min_size: int) -> pd.DataFra
     return out
 
 
-def compute_stats(original: pd.DataFrame, converted: pd.DataFrame, comp: pd.DataFrame) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
-    faild_to_convert = original.shape[0] - converted.shape[0]
+def compute_stats(original: pd.DataFrame, converted: pd.DataFrame, comp: pd.DataFrame, unsuccessful_bed: Path | None = None) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    # Calculate failed to convert based on actual unsuccessful bed file if available
+    if unsuccessful_bed is not None and Path(unsuccessful_bed).exists():
+        df_unsuccessful = read_bed(Path(unsuccessful_bed), ["chr", "start", "end", "ID"])
+        faild_to_convert = len(df_unsuccessful)
+    else:
+        faild_to_convert = original.shape[0] - converted.shape[0]
+    
+    original_total = original.shape[0]
 
     peak_filtering_stats = {
         'metric': ['Total original peaks', 'Total converted peaks', 'Failed to convert'],
-        'count': [original.shape[0], converted.shape[0], faild_to_convert],
-        'percentage': [100.0, converted.shape[0]/original.shape[0]*100, faild_to_convert/original.shape[0]*100]
+        'count': [original_total, converted.shape[0], faild_to_convert],
+        'percentage': [100.0, converted.shape[0]/original_total*100, faild_to_convert/original_total*100]
     }
 
     size_filter_passed = comp['passed_size_filter'].sum()
@@ -94,7 +137,7 @@ def compute_stats(original: pd.DataFrame, converted: pd.DataFrame, comp: pd.Data
     size_filter_stats = {
         'metric': ['Passed size filter', 'Failed size filter'],
         'count': [size_filter_passed, size_filter_failed],
-        'percentage': [size_filter_passed/len(comp)*100, size_filter_failed/len(comp)*100]
+        'percentage': [size_filter_passed/original_total*100, size_filter_failed/original_total*100]
     }
 
     multiple_filter_passed = comp['passed_multiple_filter'].sum()
@@ -102,15 +145,15 @@ def compute_stats(original: pd.DataFrame, converted: pd.DataFrame, comp: pd.Data
     multiple_filter_stats = {
         'metric': ['Passed multiple mapping filter', 'Failed multiple mapping filter'],
         'count': [multiple_filter_passed, multiple_filter_failed],
-        'percentage': [multiple_filter_passed/len(comp)*100, multiple_filter_failed/len(comp)*100]
+        'percentage': [multiple_filter_passed/original_total*100, multiple_filter_failed/original_total*100]
     }
 
     both_filters_passed = (comp['passed_size_filter'] & comp['passed_multiple_filter']).sum()
     combined_filter_stats = {
         'metric': ['Passed both filters', 'Failed at least one filter', 'Final conversion success rate'],
         'count': [both_filters_passed, len(comp) - both_filters_passed, both_filters_passed],
-        'percentage': [both_filters_passed/len(comp)*100, (len(comp) - both_filters_passed)/len(comp)*100, 
-                      both_filters_passed/original.shape[0]*100]
+        'percentage': [both_filters_passed/original_total*100, (len(comp) - both_filters_passed)/original_total*100, 
+                      both_filters_passed/original_total*100]
     }
 
     return (
@@ -140,20 +183,27 @@ def write_excel(
     - 'Explanation': textual description of tabs and filters
     """
     output_xlsx.parent.mkdir(parents=True, exist_ok=True)
+    
+    # Sort all dataframes before writing
+    filtered_df_sorted = sort_by_chrom_and_start(filtered_df)
+    original_df_sorted = sort_by_chrom_and_start(original_df)
+    converted_df_sorted = sort_by_chrom_and_start(converted_df)
+    
     with pd.ExcelWriter(output_xlsx, engine='openpyxl') as writer:
         # Data tabs (filtered first)
-        filt_cols = [c for c in ["chr", "start", "end", "ID", "n_multiple", "converted_size"] if c in filtered_df.columns]
-        filtered_df[filt_cols].to_excel(writer, sheet_name='filtered peaks', index=False)
+        filt_cols = [c for c in ["chr", "start", "end", "ID", "n_multiple", "converted_size"] if c in filtered_df_sorted.columns]
+        filtered_df_sorted[filt_cols].to_excel(writer, sheet_name='filtered peaks', index=False)
 
-        orig_cols = [c for c in ["chr", "start", "end", "ID"] if c in original_df.columns]
-        conv_cols = [c for c in ["chr", "start", "end", "ID", "n_multiple"] if c in converted_df.columns]
-        original_df[orig_cols].to_excel(writer, sheet_name='original peaks', index=False)
-        converted_df[conv_cols].to_excel(writer, sheet_name='converted peaks', index=False)
+        orig_cols = [c for c in ["chr", "start", "end", "ID"] if c in original_df_sorted.columns]
+        conv_cols = [c for c in ["chr", "start", "end", "ID", "n_multiple"] if c in converted_df_sorted.columns]
+        original_df_sorted[orig_cols].to_excel(writer, sheet_name='original peaks', index=False)
+        converted_df_sorted[conv_cols].to_excel(writer, sheet_name='converted peaks', index=False)
 
         # Failed to convert tab (optional)
         if unsuccessful_bed is not None and Path(unsuccessful_bed).exists():
             df_uns = read_bed(Path(unsuccessful_bed), ["chr", "start", "end", "ID"])  # '#' comments ignored
-            df_uns.to_excel(writer, sheet_name='Failed to convert', index=False)
+            df_uns_sorted = sort_by_chrom_and_start(df_uns)
+            df_uns_sorted.to_excel(writer, sheet_name='Failed to convert', index=False)
 
         # Statistics tab with number formatting
         all_stats_df.to_excel(writer, sheet_name='Statistics', index=False)
@@ -176,10 +226,9 @@ def write_excel(
             {"Section": "filtered peaks", "Description": "Peaks that passed both filters (size and multi-mapping)."},
             {"Section": "original peaks", "Description": "Original mm10 peaks (chr,start,end,ID)."},
             {"Section": "converted peaks", "Description": "Peaks after liftover to hg38 (includes n_multiple)."},
-            {"Section": "Failed to convert", "Description": "Peaks that failed conversion; comment lines ('#') are ignored on load."},
-            {"Section": "Statistics", "Description": "Summary counts and percentages; numbers formatted with thousands separators."},
-            {"Section": "Filter: size", "Description": "Keeps peaks with converted_size ≥ min_size of smallest original peak; min_size computed from original sizes using relative tolerance (0.25 of original size) and floor."},
-            {"Section": "Filter: multiple mapping", "Description": "Removes peaks with n_multiple > 1 (non-unique mappings)."},
+            {"Section": "Failed to convert", "Description": "Peaks that failed conversion."},
+            {"Section": "Filter: size", "Description": "Upon the conversion from mm10 to hg39, peaks were omitted if: (1) new peaks size was smaller than the smallest mm10 peak size (140 bp) (2) new peak size was bigger than its original size by 25% or 1000 bp."},
+            {"Section": "Filter: multiple mapping", "Description": "Upon the conversion from mm10 to hg39, peaks were ommitted it them mapped to more than one genomic site (n_multimap >1)"},
         ]
         pd.DataFrame(explanation_rows, columns=["Section", "Description"]).to_excel(
             writer, sheet_name='Explanation', index=False
@@ -209,7 +258,7 @@ def main() -> int:
     min_size = compute_min_size_threshold(original, args.rel_tol, args.min_size_floor)
     comp = apply_filters(comp, abs_tol=args.abs_tol, min_size=min_size)
 
-    peak_df, size_df, multi_df, both_df = compute_stats(original, converted, comp)
+    peak_df, size_df, multi_df, both_df = compute_stats(original, converted, comp, Path(args.unsuccessful_bed) if args.unsuccessful_bed else None)
     peak_df['category'] = 'Peak Filtering'
     size_df['category'] = 'Size Filter'
     multi_df['category'] = 'Multiple Mapping Filter'
@@ -231,7 +280,9 @@ def main() -> int:
         all_stats_df=all_stats_df,
         unsuccessful_bed=Path(args.unsuccessful_bed) if args.unsuccessful_bed else None,
     )
-    filtered_df[['chr', 'start', 'end', 'ID']].to_csv(BED_FILTERED, sep='\t', index=False, header=False)
+    # Sort before writing BED file
+    filtered_df_sorted = sort_by_chrom_and_start(filtered_df)
+    filtered_df_sorted[['chr', 'start', 'end', 'ID']].to_csv(BED_FILTERED, sep='\t', index=False, header=False)
 
     print(f"Wrote Excel: {XL_OUTPUT}")
     print(f"Wrote filtered BED: {BED_FILTERED}")
@@ -240,5 +291,3 @@ def main() -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
-
-

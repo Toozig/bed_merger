@@ -26,6 +26,7 @@ import math
 import os
 import re
 from pathlib import Path
+import matplotlib.colors as mcolors
 from typing import Iterable, List, Sequence, Tuple
 
 import matplotlib.pyplot as plt
@@ -51,6 +52,26 @@ COLORS = {
     "coding_accessible": "#E78AC3",        # Set2 pink
 }
 
+# Blend function
+def blend_colors(color1, color2):
+    c1 = mcolors.to_rgb(color1)
+    c2 = mcolors.to_rgb(color2)
+    return tuple((c1[i] + c2[i]) / 2 for i in range(3))
+
+MM10_COLORS = {
+    # Colors
+"non_coding_accessible" : "#b9f2f0",
+"coding_inaccessible" : "#2b6f77",
+"non_coding_inaccessible" : "#d9d9d9",
+"coding_accessible" : blend_colors("#b9f2f0", "#2b6f77")
+}
+
+HG38_COLORS = {
+"non_coding_accessible" : "#debb9b",
+"coding_inaccessible" : "#8b6b4f",
+"non_coding_inaccessible" : "#d9d9d9",
+"coding_accessible" : blend_colors("#debb9b", "#8b6b4f")
+}
 
 class RowModel(BaseModel):
     """Validated representation of a single row in the CSV.
@@ -457,6 +478,89 @@ def parse_args() -> argparse.Namespace:
         help="Disable log10 sizing of wedges (use raw percentages for sizes)",
     )
     return parser.parse_args()
+
+
+def plot_pie2(labels: Sequence[str], 
+            raw_percents: Sequence[float], 
+            colors: dict, 
+            labeled: bool, 
+            use_log: bool,
+            genome_type: str,
+            legend_location: str = "center left",
+            legend_bbox_to_anchor: Tuple[float, float] = (1, 0.5)) -> plt.Figure:
+    """Create a pie chart figure.
+
+    Parameters
+    ----------
+    labels : Sequence[str]
+        Segment labels in plotting order.
+    raw_percents : Sequence[float]
+        Segment percentages (0-100), untransformed.
+    colors : dict
+        Mapping with keys: non_coding, inaccessible_coding, accessible_coding
+    labeled : bool
+        If True, annotate wedges with raw percentages; else show no wedge text.
+    use_log : bool
+        If True, wedges are sized by log10(raw_percent + 1).
+
+    Returns
+    -------
+    matplotlib.figure.Figure
+        The created figure.
+    """
+    fig, ax = plt.subplots(figsize=(5, 5), dpi=150)
+    if genome_type == "hg38":
+        colors = HG38_COLORS
+    elif genome_type == "mm10":
+        colors = MM10_COLORS
+    else:
+        raise ValueError(f"Invalid genome type: {genome_type}")
+    color_list = [
+        colors["non_coding_inaccessible"],
+        colors["non_coding_accessible"],
+        colors["coding_inaccessible"],
+        colors["coding_accessible"],
+    ]
+
+    # Sizes for plotting (optionally log-transformed)
+    sizes_for_plot = [math.log10(p + 1.0) for p in raw_percents] if use_log else list(raw_percents)
+
+    autopct = "%1.1f%%" if labeled else None
+
+    
+    pie_result = ax.pie(
+        sizes_for_plot,
+        labels=None,  # use legend for labels
+        colors=color_list,
+        startangle=90,
+        counterclock=False,
+        autopct=autopct,
+        pctdistance=0.7,
+    )
+    wedges = pie_result[0]
+    # If labeled, override the autotexts to show RAW percents, not plot-scaled
+    if labeled and len(pie_result) >= 3:
+        autotexts = pie_result[2]
+        for i, at in enumerate(autotexts):
+            if i < len(raw_percents):
+                at.set_text(f"{raw_percents[i]:.1f}%")
+
+    # Legend uses raw percentages, not plot-scaled values
+    legend_labels = [f"{lab} ({p:.1f}%)" for lab, p in zip(labels, raw_percents)]
+    ax.legend(wedges, legend_labels, loc="center left", bbox_to_anchor=(1, 0.5))
+
+    ax.set_aspect("equal")
+    if use_log:
+        fig.text(
+            0.5,
+            0.02,
+            "Note: slice sizes use log10 transform; percentages reflect raw values",
+            ha="center",
+            va="center",
+            fontsize=8,
+        )
+    plt.tight_layout()
+    return fig
 
 
 def main() -> None:

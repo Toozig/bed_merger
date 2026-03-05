@@ -8,6 +8,8 @@
       "Total bases": 3298912062,
       "Total non-N bases": 3137300923,
       "Primary assembly N50": 67794873,
+      "Gene annotation file": "resources/ncbiRefSeq_hg38_23_11_2024.gtf",
+      "Gene annotation": "PMID:39526373",
       "source": "https://www.ncbi.nlm.nih.gov/grc/human/data"
     },
     "mm10": {
@@ -18,6 +20,8 @@
       "Assembly units": 17,
       "Total bases": 2818974548,
       "Total non-N bases": 2739538976,
+      "Gene annotation file": "resources/gencode.vM25.annotation.gtf.gz",
+      "Gene annotation": "PMID:39565199",
       "Primary assembly N50": 54517951,
       "source": "https://www.ncbi.nlm.nih.gov/grc/mouse/data"
     }

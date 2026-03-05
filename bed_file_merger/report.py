@@ -20,11 +20,11 @@ COL_MEDIAN_PEAK_LENGTH = "Median peak Length"
 COL_ACCESSIBLE_CODING_PEAKS = "# Accessible coding Peaks"
 COL_ACCESSIBLE_CODING_BP = "Accessible coding BP"
 COL_ACCESSIBLE_CODING_PCT = "% Accessible coding\n( Accessible coding BP / Total accessible BP )"
-COL_ACCESSIBLE_GENOME_PCT = "% Accessible genome\n( Total accessible BP / Total genome BP )"
-COL_CODING_OF_ACCESSIBLE_GENOME_PCT = "% Coding accessible genome (BP)\n(Accessible coding BP / Total genome BP)"
-COL_NON_ACCESSIBLE_CODING_PCT_TMPL = "% Non-accessible coding (out of total  {build} bp)\n(Non-accessible coding BP / Total genome BP)"
-COL_TOTAL_CODING_PCT_TMPL = "% Total coding BP (out of total {build} bp)"
-COL_TOTAL_GENOME_BP_TMPL = "Total {build} bp"
+COL_ACCESSIBLE_GENOME_PCT = "% Accessible BP out of whole genome\n( Total accessible BP / Total genome BP )"
+COL_CODING_OF_ACCESSIBLE_GENOME_PCT = "% Accessible and coding BP out of whole genome\n( Accessible coding BP / Total genome BP )"
+COL_NON_ACCESSIBLE_CODING_PCT_TMPL = "% coding BP not accessible in human gonads (out of total {build} BP)\n( Non-accessible coding BP / Total genome BP )"
+COL_TOTAL_CODING_PCT_TMPL = "% Total coding BP (out of total {build} BP)"
+COL_TOTAL_GENOME_BP_TMPL = "Total {build} bp (PMID: 28396521)"
 SHEET_SUMMARY_NAME = "Statistics_Summary"
 SHEET_DICTIONARY_NAME = "Column_Dictionary"
 
@@ -39,24 +39,32 @@ COL_DESCRIPTIONS_STATIC = {
     COL_MEAN_PEAK_LENGTH: "Mean peak length in bp.",
     COL_MEDIAN_PEAK_LENGTH: "Median peak length in bp.",
     COL_ACCESSIBLE_CODING_PEAKS: "Number of peaks that overlap coding regions (any overlap).",
-    COL_ACCESSIBLE_CODING_BP: "Total base pairs within peaks that overlap coding regions (clipped to the overlap).",
-    COL_ACCESSIBLE_CODING_PCT: "Accessible coding BP divided by Total accessible BP (×100).",
-    COL_ACCESSIBLE_GENOME_PCT: "Total accessible BP divided by Total genome BP (×100).",
-    COL_CODING_OF_ACCESSIBLE_GENOME_PCT: "Accessible coding BP divided by Total genome BP (×100).",
+    COL_ACCESSIBLE_CODING_BP: "Total base pairs within peaks that overlap coding regions (trimmed to the overlap).",
+    COL_ACCESSIBLE_CODING_PCT: "The precentage of BP within accessible peaks that are coding BP.",
+    COL_TOTAL_CODING_PCT_TMPL: "The total number of BP that are coding in the {build} human genome (PMID: 28396521)",
+    COL_NON_ACCESSIBLE_CODING_PCT_TMPL: "The precentage of BP that are coding and not within accessible peaks, relative to the whole {build} genome",
+    COL_ACCESSIBLE_GENOME_PCT: "The precentage of BP within accessible peaks relative to the whole {build} genome.",
+    COL_CODING_OF_ACCESSIBLE_GENOME_PCT: "The precentage of BP within accessible peaks, overlapping coding parts relative to the whole {build} genome.",
+    COL_TOTAL_GENOME_BP_TMPL: "Total genome size in base pairs for the specified genome build.",
 }
 
 def _format_genome_dependent_descriptions(genome_build: str) -> dict:
     return {
         COL_NON_ACCESSIBLE_CODING_PCT_TMPL.format(build=genome_build): (
-            "Non-accessible coding BP (Total coding BP − Accessible coding BP) "
-            "divided by Total genome BP (×100)."
-        ),
+            COL_DESCRIPTIONS_STATIC[COL_NON_ACCESSIBLE_CODING_PCT_TMPL]
+        ).format(build=genome_build),
         COL_TOTAL_CODING_PCT_TMPL.format(build=genome_build): (
-            "Total coding BP divided by Total genome BP (×100)."
-        ),
+            COL_DESCRIPTIONS_STATIC[COL_TOTAL_CODING_PCT_TMPL]
+        ).format(build=genome_build),
         COL_TOTAL_GENOME_BP_TMPL.format(build=genome_build): (
-            "Total genome size in base pairs for the specified genome build."
+            COL_DESCRIPTIONS_STATIC[COL_TOTAL_GENOME_BP_TMPL]
         ),
+        COL_ACCESSIBLE_GENOME_PCT: (
+            COL_DESCRIPTIONS_STATIC[COL_ACCESSIBLE_GENOME_PCT]
+        ).format(build=genome_build),
+        COL_CODING_OF_ACCESSIBLE_GENOME_PCT: (
+            COL_DESCRIPTIONS_STATIC[COL_CODING_OF_ACCESSIBLE_GENOME_PCT]
+        ).format(build=genome_build),
     }
 
 def _build_column_dictionary(summary_df: pd.DataFrame, genome_build: str) -> pd.DataFrame:
@@ -82,7 +90,7 @@ def process_per_file_frames(per_file_dfs: Iterable[pd.DataFrame]) -> List[pd.Dat
                 *[f"col_{i}" for i in range(4, len(tmp.columns) + 1)],
             ][: len(tmp.columns)]
         if "start" in tmp.columns and "end" in tmp.columns:
-            tmp.insert(3, "size", (tmp["end"] - tmp["start"]).astype(int))
+            tmp.insert(3, "size (BP)", (tmp["end"] - tmp["start"]).astype(int))
         processed.append(tmp)
     return processed
 
@@ -190,12 +198,15 @@ def save_excel_report(processed_dfs: Iterable[pd.DataFrame],
             # Try to infer genome_build string by parsing the last columns that include it; fallback to 'genome'
             build = "genome"
             for col in summary_df.columns[::-1]:
-                if col.startswith("Total ") and col.endswith(" bp") and "  " not in col:
-                    # e.g., "Total hg38 bp" -> extract hg38
+                if col.startswith("Total ") and " bp" in col:
+                    # Extract build from "Total mm10 bp" or "Total mm10 bp (PMID: 28396521)"
                     try:
-                        build = col[len("Total ") : -len(" bp")]
+                        # Extract text between "Total " and " bp"
+                        build = col[len("Total "):col.find(" bp")]
+                        print(f"Inferred build from column '{col}': '{build}'")
                         break
-                    except Exception:
+                    except Exception as e:
+                        print(f"Error inferring build from '{col}': {e}")
                         pass
             dictionary_df = _build_column_dictionary(summary_df, build)
             dictionary_df.to_excel(writer, sheet_name=SHEET_DICTIONARY_NAME, index=False)
